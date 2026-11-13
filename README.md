@@ -40,7 +40,7 @@ Playwright uses `/usr/bin/google-chrome` locally. Set `CHROME_PATH` to point at 
 | All interpretation text, discussion prompts and disclaimers | `src/config/interpretation.ts` |
 | Irish resources (with last-verified date) | `src/config/resources.ts` |
 | Navigation and the contribution setting | `src/config/site.ts` |
-| Descriptive results engine (counts and descriptions only, no scoring) | `src/lib/results.ts` |
+| Descriptive results engine (per-area spectrum positions, no overall score) | `src/lib/results.ts` |
 | Session model and validation of stored data | `src/lib/session.ts` |
 | Browser-local storage, delete-all and display preferences | `src/lib/store.ts` |
 | PDF report builder | `src/lib/pdf.ts` |
@@ -49,7 +49,7 @@ Clinical reviewers can edit wording in the config files without changing applica
 
 ## Privacy model
 
-- Answers, notes and preferences are kept in `localStorage` under `frame24:` keys and are never transmitted.
+- Answers, the optional note and preferences are kept in `localStorage` under `frame24:` keys and are never transmitted.
 - A Content-Security-Policy with `connect-src 'self'` stops the browser from sending data to any other server.
 - One control deletes every `frame24:` key.
 - `/experience`, `/results` and `/report` are marked `noindex` and disallowed in `robots.txt`.

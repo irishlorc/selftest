@@ -1,27 +1,23 @@
 /**
  * FRAME-24 descriptive results engine.
  *
- * This engine COUNTS and DESCRIBES a person's own answers. By design it does
- * not compute any score, likelihood, probability, severity, risk category or
- * threshold, and it never infers an answer for a skipped statement.
+ * This engine COUNTS and DESCRIBES a person's own answers and places them on a
+ * per-area spectrum from "Never" to "Almost always". By design it does not
+ * compute an overall score, likelihood, probability, severity, risk category
+ * or threshold, and it never infers an answer for a skipped statement.
  */
 import {
   DIMENSIONS,
   FREQUENCY_LABEL,
-  IMPACT_LABEL,
   QUESTIONS,
   SCALE,
+  SCALE_POSITION,
   questionsFor,
   type Dimension,
   type Frequency,
-  type Impact,
   type Question,
 } from "@/config/questionnaire";
-import {
-  COPY,
-  DIMENSION_INTERPRETATION,
-  GENERAL_DISCUSSION_PROMPTS,
-} from "@/config/interpretation";
+import { COPY, DIMENSION_INTERPRETATION, GENERAL_DISCUSSION_PROMPTS } from "@/config/interpretation";
 import type { Session } from "./session";
 
 export type ItemStatus = "answered" | "not_sure" | "skipped" | "unanswered";
@@ -31,9 +27,9 @@ export interface ItemResult {
   index: number; // 0-based position in the questionnaire
   status: ItemStatus;
   frequency?: Frequency;
-  impact?: Impact;
   frequencyLabel: string;
-  impactLabel: string | null;
+  /** 0 (never) to 4 (almost always); null when not on the scale. */
+  position: number | null;
   /** Often or almost always. */
   frequent: boolean;
 }
@@ -49,9 +45,13 @@ export interface DimensionResult {
   unanswered: number;
   distribution: Record<(typeof SCALE)[number], number>;
   frequent: number;
-  impact: Record<Impact, number>;
-  impactUnrated: number;
-  patterns: string[];
+  /**
+   * Middle of the reported answers on the 0–4 spectrum (their average).
+   * null when nothing in the area was reported. Descriptive only: there are
+   * no zones, cut-offs or categories attached to it.
+   */
+  centre: number | null;
+  summary: string;
   about: string;
   overlaps: string;
 }
@@ -66,14 +66,6 @@ export interface Results {
     skipped: number;
     unanswered: number;
     frequent: number;
-    difficult: number;
-    mixed: number;
-    helpful: number;
-  };
-  highlights: {
-    frequentAndDifficult: ItemResult[];
-    frequentAndHelpful: ItemResult[];
-    lessFrequentButDifficult: ItemResult[];
   };
   discussionPrompts: string[];
   isComplete: boolean;
@@ -87,67 +79,27 @@ function itemResult(session: Session | null, question: Question, index: number):
   else if (answer?.skipped) status = "skipped";
 
   const frequency = answer?.frequency;
-  const impact = status === "answered" ? answer?.impact : undefined;
   return {
     question,
     index,
     status,
     frequency,
-    impact,
     frequencyLabel:
       status === "skipped" ? "Skipped" : status === "unanswered" ? "Not answered" : FREQUENCY_LABEL[frequency!],
-    impactLabel: impact ? IMPACT_LABEL[impact] : null,
+    position: status === "answered" ? SCALE_POSITION[frequency as (typeof SCALE)[number]] : null,
     frequent: frequency === "often" || frequency === "almost_always",
   };
 }
 
-function plural(n: number, one: string, many: string) {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-function quoteList(items: ItemResult[]): string {
-  const labels = items.map((i) => `“${i.question.shortLabel.toLowerCase()}”`);
-  if (labels.length <= 1) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
-}
-
-/** Plain-language sentences that reflect what the person reported. */
-export function describeDimension(d: Omit<DimensionResult, "patterns">): string[] {
-  if (d.reported === 0) return [COPY.emptyDimension];
-
-  const lines: string[] = [];
-  lines.push(
-    `You gave a frequency for ${d.reported} of ${d.total} statements in this area. ${
-      d.frequent > 0
-        ? `You reported ${plural(d.frequent, "of them", "of them")} as happening often or almost always.`
-        : "None of them were reported as happening often or almost always."
-    }`,
-  );
-
-  const answered = d.items.filter((i) => i.status === "answered");
-  const difficult = answered.filter((i) => i.impact === "difficult");
-  const mixed = answered.filter((i) => i.impact === "mixed");
-  const helpful = answered.filter((i) => i.impact === "helpful");
-
-  if (difficult.length) {
-    lines.push(`You described ${quoteList(difficult)} as mostly difficult.`);
-  }
-  if (mixed.length) {
-    lines.push(`You described ${quoteList(mixed)} as having a mixed effect.`);
-  }
-  if (helpful.length) {
-    lines.push(`You described ${quoteList(helpful)} as mostly helpful.`);
-  }
-
+/** One plain-language sentence describing what was reported in an area. */
+export function describeDimension(d: Pick<DimensionResult, "reported" | "total" | "frequent" | "notSure" | "skipped" | "unanswered">): string {
+  if (d.reported === 0) return COPY.emptyDimension;
   const gaps = d.notSure + d.skipped + d.unanswered;
-  if (gaps > 0) {
-    lines.push(
-      `${plural(gaps, "statement was", "statements were")} skipped, unanswered or marked ‘not sure’, and ${
-        gaps === 1 ? "is" : "are"
-      } left out rather than assumed.`,
-    );
-  }
-  return lines;
+  const freq =
+    d.frequent === 0
+      ? "none as often or almost always"
+      : `${d.frequent} as often or almost always`;
+  return `You answered ${d.reported} of ${d.total}, with ${freq}${gaps ? `; ${gaps} left out` : ""}.`;
 }
 
 export function computeResults(session: Session | null): Results {
@@ -157,51 +109,37 @@ export function computeResults(session: Session | null): Results {
   const dimensions: DimensionResult[] = DIMENSIONS.map((dimension) => {
     const dItems = questionsFor(dimension.id).map((q) => byId.get(q.id)!);
     const distribution = Object.fromEntries(SCALE.map((s) => [s, 0])) as DimensionResult["distribution"];
-    const impact: Record<Impact, number> = { helpful: 0, neutral: 0, difficult: 0, mixed: 0 };
-    let impactUnrated = 0;
-
+    const positions: number[] = [];
     for (const item of dItems) {
-      if (item.status === "answered" && item.frequency && item.frequency !== "not_sure") {
-        distribution[item.frequency] += 1;
-        if (item.impact) impact[item.impact] += 1;
-        else if (item.frequency !== "never") impactUnrated += 1;
+      if (item.status === "answered" && item.position !== null) {
+        distribution[item.frequency as (typeof SCALE)[number]] += 1;
+        positions.push(item.position);
       }
     }
-
     const base = {
-      dimension,
-      items: dItems,
+      reported: positions.length,
       total: dItems.length,
-      reported: dItems.filter((i) => i.status === "answered").length,
       notSure: dItems.filter((i) => i.status === "not_sure").length,
       skipped: dItems.filter((i) => i.status === "skipped").length,
       unanswered: dItems.filter((i) => i.status === "unanswered").length,
-      distribution,
       frequent: dItems.filter((i) => i.frequent).length,
-      impact,
-      impactUnrated,
+    };
+    return {
+      dimension,
+      items: dItems,
+      ...base,
+      distribution,
+      centre: positions.length ? positions.reduce((a, b) => a + b, 0) / positions.length : null,
+      summary: describeDimension(base),
       about: DIMENSION_INTERPRETATION[dimension.id].about,
       overlaps: DIMENSION_INTERPRETATION[dimension.id].overlaps,
     };
-    return { ...base, patterns: describeDimension(base) };
   });
 
-  const answered = items.filter((i) => i.status === "answered");
-  const frequentAndDifficult = answered.filter(
-    (i) => i.frequent && (i.impact === "difficult" || i.impact === "mixed"),
-  );
-  const frequentAndHelpful = answered.filter((i) => i.frequent && i.impact === "helpful");
-  const lessFrequentButDifficult = answered.filter(
-    (i) => !i.frequent && i.frequency !== "never" && (i.impact === "difficult" || i.impact === "mixed"),
-  );
-
-  // Discussion prompts: from areas where the person reported frequent or
-  // difficult experiences, then general prompts. No ranking implied.
+  // Prompts from areas with frequent experiences, then general prompts.
   const prompts: string[] = [];
   for (const d of dimensions) {
-    const relevant =
-      d.frequent > 0 || d.impact.difficult > 0 || d.impact.mixed > 0;
-    if (relevant) prompts.push(...DIMENSION_INTERPRETATION[d.dimension.id].discussionPrompts);
+    if (d.frequent > 0) prompts.push(...DIMENSION_INTERPRETATION[d.dimension.id].discussionPrompts);
   }
   prompts.push(...GENERAL_DISCUSSION_PROMPTS);
 
@@ -210,16 +148,12 @@ export function computeResults(session: Session | null): Results {
     items,
     totals: {
       statements: items.length,
-      reported: answered.length,
+      reported: items.filter((i) => i.status === "answered").length,
       notSure: items.filter((i) => i.status === "not_sure").length,
       skipped: items.filter((i) => i.status === "skipped").length,
       unanswered: items.filter((i) => i.status === "unanswered").length,
       frequent: items.filter((i) => i.frequent).length,
-      difficult: answered.filter((i) => i.impact === "difficult").length,
-      mixed: answered.filter((i) => i.impact === "mixed").length,
-      helpful: answered.filter((i) => i.impact === "helpful").length,
     },
-    highlights: { frequentAndDifficult, frequentAndHelpful, lessFrequentButDifficult },
     discussionPrompts: prompts,
     isComplete: Boolean(session?.completedAt),
   };

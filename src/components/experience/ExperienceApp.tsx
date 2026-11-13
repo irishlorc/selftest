@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QUESTIONS, type Frequency, type Impact } from "@/config/questionnaire";
-import { firstOpenIndex, withFrequency, withImpact, withSkip } from "@/lib/session";
+import { QUESTIONS, type Frequency } from "@/config/questionnaire";
+import { firstOpenIndex, withFrequency, withSkip } from "@/lib/session";
 import { resetSession, updateSession, useIsClient, useSession } from "@/lib/store";
 import { IntroView } from "./IntroView";
 import { QuestionView } from "./QuestionView";
@@ -41,18 +41,6 @@ export function ExperienceApp() {
     updateSession((s) => ({ ...s, currentIndex: Math.max(0, Math.min(QUESTIONS.length - 1, i)) }));
   }, []);
 
-  const onFrequency = useCallback(
-    (f: Frequency) => {
-      setHint("");
-      updateSession((s) => withFrequency(s, QUESTIONS[s.currentIndex].id, f));
-    },
-    [],
-  );
-
-  const onImpact = useCallback((i: Impact | undefined) => {
-    updateSession((s) => withImpact(s, QUESTIONS[s.currentIndex].id, i));
-  }, []);
-
   const advance = useCallback(() => {
     if (returnToReview || index === QUESTIONS.length - 1) {
       setReturnToReview(false);
@@ -61,6 +49,32 @@ export function ExperienceApp() {
       goTo(index + 1);
     }
   }, [goTo, index, returnToReview]);
+
+  // Auto-advance after a short pause so the choice is visible first.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  useEffect(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  }, [index]);
+
+  const onAnswer = useCallback(
+    (f: Frequency, shouldAdvance: boolean) => {
+      setHint("");
+      updateSession((s) => withFrequency(s, QUESTIONS[s.currentIndex].id, f));
+      if (shouldAdvance && !timer.current) {
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          advance();
+        }, 260);
+      }
+    },
+    [advance],
+  );
 
   const onNext = useCallback(() => {
     const a = session?.answers[QUESTIONS[index].id];
@@ -127,8 +141,7 @@ export function ExperienceApp() {
       index={index}
       returnToReview={returnToReview}
       hint={hint}
-      onFrequency={onFrequency}
-      onImpact={onImpact}
+      onAnswer={onAnswer}
       onNext={onNext}
       onSkip={onSkip}
       onBack={() => {

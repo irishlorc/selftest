@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { QUESTIONS } from "../../src/config/questionnaire";
-import { createSession, withFrequency, withImpact } from "../../src/lib/session";
+import { createSession, withFrequency } from "../../src/lib/session";
 import { begin, seed } from "./helpers";
 
 const ROUTES = ["/", "/understanding-autism", "/next-steps", "/about", "/privacy", "/support", "/results", "/report"];
@@ -9,7 +9,6 @@ function completed() {
   let s = createSession();
   QUESTIONS.forEach((q, i) => {
     s = withFrequency(s, q.id, (["rarely", "sometimes", "often", "almost_always"] as const)[i % 4]);
-    s = withImpact(s, q.id, (["helpful", "neutral", "difficult", "mixed"] as const)[i % 4]);
   });
   return { ...s, consentedAt: s.startedAt, completedAt: s.startedAt };
 }

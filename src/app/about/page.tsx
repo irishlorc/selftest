@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageIntro } from "@/components/PageIntro";
-import { DIMENSIONS, FRAMEWORK, FREQUENCY_OPTIONS, IMPACT_OPTIONS, QUESTIONS } from "@/config/questionnaire";
+import { DIMENSIONS, FRAMEWORK, FREQUENCY_OPTIONS, QUESTIONS } from "@/config/questionnaire";
 import { container, cx } from "@/lib/ui";
 
 export const metadata: Metadata = {
@@ -41,15 +41,16 @@ export default function About() {
           <h3>Response scale</h3>
           <p>
             For each statement you choose one of{" "}
-            {FREQUENCY_OPTIONS.map((o) => o.label.toLowerCase()).join(", ").replace(/, ([^,]*)$/, " or $1")}. For
-            experiences that happen at least rarely, you can optionally say whether their effect is{" "}
-            {IMPACT_OPTIONS.map((o) => o.label.toLowerCase()).join(", ").replace(/, ([^,]*)$/, " or $1")}.
+            {FREQUENCY_OPTIONS.map((o) => o.label.toLowerCase()).join(", ").replace(/, ([^,]*)$/, " or $1")}.
           </p>
-          <h3>A descriptive results engine</h3>
+          <h3>A visual, descriptive result</h3>
           <p>
-            Results are counts and plain-language descriptions of what you reported, area by area. How often something
-            happens and how it affects you are shown separately. Skipped and “not sure” statements are shown as gaps
-            and are never filled in.
+            Results show each area as its own line from never to almost always, with each of your answers placed on it
+            and a marker in the middle of them. Skipped and “not sure” statements are left off and never filled in.
+          </p>
+          <p>
+            There is deliberately no single overall line or position. Combining the areas into one place on an
+            “autism spectrum” would work like a likelihood score, which a reflection tool can’t responsibly give.
           </p>
           <p>
             By design, FRAME-24 does not calculate autism likelihood, diagnostic probability, severity, risk categories

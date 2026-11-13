@@ -10,14 +10,10 @@ import { FrameTile } from "../FrameTile";
 import { btn, container, cx } from "@/lib/ui";
 
 const CONTENTS = [
-  "A cover page with your completion date and a mosaic drawn from your answers",
-  "A six-area summary of your reported responses",
-  "Each area in detail: your answers, how they affect you, and plain-language patterns",
-  "Patterns across your answers, separating frequent from difficult",
-  "Questions you might wish to discuss with a professional",
-  "Your personal reflections (optional)",
-  "An appendix with all 24 responses",
-  "Important information, and verified support resources in Ireland",
+  "Your spectrum across the six areas",
+  "Questions you might bring to a professional",
+  "All 24 answers, plus your note if you add one",
+  "Important information and verified support in Ireland",
 ];
 
 export function ReportApp() {
@@ -58,7 +54,7 @@ export function ReportApp() {
     );
   }
 
-  const noteCount = Object.values(session.notes).filter(Boolean).length + (session.overallNote ? 1 : 0);
+  const hasNote = Boolean(session.overallNote);
 
   return (
     <div className={cx(container, "grid gap-12 pb-10 pt-8 sm:pt-12 lg:grid-cols-[1fr_0.9fr] lg:items-start")}>
@@ -67,8 +63,8 @@ export function ReportApp() {
           Your free report
         </h1>
         <p className="mt-4 max-w-xl text-lg text-ink-2">
-          A multi-page PDF you can keep, print or bring to a professional. It’s created right here in your browser —
-          nothing is uploaded, and it will always be free.
+          A short PDF you can keep, print or bring to a professional. It’s created in your browser — nothing is
+          uploaded, and it will always be free.
         </p>
         {!results.isComplete && (
           <p className="mt-6 rounded-2xl border border-line bg-surface p-4 text-[0.95rem]">
@@ -99,11 +95,11 @@ export function ReportApp() {
               data-testid="include-notes"
             />
             <span>
-              <span className="font-semibold">Include my personal reflections</span>
+              <span className="font-semibold">Include my note</span>
               <span className="block text-sm text-ink-2">
-                {noteCount === 0
-                  ? "You haven’t written any notes yet. You can add them on your results page."
-                  : `You have ${noteCount} ${noteCount === 1 ? "note" : "notes"}. Untick this if you’d rather share the report without them.`}
+                {hasNote
+                  ? "Untick this if you’d rather share the report without it."
+                  : "You haven’t added a note. You can add one on your results page."}
               </span>
             </span>
           </label>
@@ -147,7 +143,7 @@ export function ReportApp() {
               {results.dimensions.map((d, col) => (
                 <div key={d.dimension.id} className="grid gap-1.5" style={{ marginTop: (col % 3) * 4 }}>
                   {d.items.map((i) => (
-                    <FrameTile key={i.question.id} token={d.dimension.token} state={i.status} frequency={i.frequency} showImpact={false} className="h-5 w-5 sm:h-6 sm:w-6" />
+                    <FrameTile key={i.question.id} token={d.dimension.token} state={i.status} frequency={i.frequency} className="h-5 w-5 sm:h-6 sm:w-6" />
                   ))}
                 </div>
               ))}

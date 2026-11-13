@@ -6,28 +6,24 @@ import { Glyph } from "@/components/Glyph";
 import { container, cx } from "@/lib/ui";
 
 const FACTS = [
-  { title: `${FRAMEWORK.estimatedMinutes} minutes`, body: "Pause whenever you like. Progress saves as you go." },
+  { title: `${FRAMEWORK.estimatedMinutes} minutes`, body: "One tap per statement. Progress saves as you go." },
   { title: "No account", body: "Nothing to sign up for, and nothing to remember." },
   { title: "Stays on your device", body: "Answers are never sent to a server or analytics." },
-  { title: "Free report", body: "A multi-page PDF, generated in your browser." },
+  { title: "Free report", body: "A PDF you can keep, generated in your browser." },
 ];
 
 const STEPS = [
   {
-    title: "Respond to 24 statements",
-    body: "Say how often each one fits your life, from never to almost always. Skip or choose ‘not sure’ whenever you need to.",
+    title: "Tap through 24 statements",
+    body: "One tap per statement, from never to almost always. Skip or choose ‘not sure’ whenever you like.",
   },
   {
-    title: "Note how it affects you",
-    body: "Optionally mark whether an experience is mostly helpful, neutral, difficult or mixed. Frequency and difficulty are kept apart.",
+    title: "Check your answers",
+    body: "See them all in one place and change anything before you finish.",
   },
   {
-    title: "Review before you finish",
-    body: "See every answer in one place and change anything. Nothing is final until you say so.",
-  },
-  {
-    title: "Explore and keep your reflection",
-    body: "Look through six areas, add your own notes, and download a report to keep or bring to a professional.",
+    title: "See your spectrum",
+    body: "Six areas, each on a line from never to almost always — and a free report to keep.",
   },
 ];
 
@@ -138,7 +134,7 @@ export default function Home() {
             <h3 className="font-semibold">It can</h3>
             <ul className="mt-4 grid gap-3 text-ink-2">
               <li>Give you words and structure for experiences that can be hard to describe.</li>
-              <li>Separate how often something happens from how much it affects you.</li>
+              <li>Show your answers at a glance, area by area.</li>
               <li>Help you prepare for a conversation with a GP, psychologist or someone you trust.</li>
             </ul>
           </div>

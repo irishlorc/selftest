@@ -5,7 +5,7 @@ import { DIMENSIONS, QUESTIONS, questionsFor } from "@/config/questionnaire";
 import { computeResults } from "@/lib/results";
 import type { Session } from "@/lib/session";
 import { Glyph } from "../Glyph";
-import { FrameTile, ImpactSymbol } from "../FrameTile";
+import { FrameTile } from "../FrameTile";
 import { btn, cx } from "@/lib/ui";
 
 export function ReviewView({
@@ -29,9 +29,12 @@ export function ReviewView({
       <h1 className="font-serif text-[clamp(2.2rem,1.5rem+2.6vw,3.4rem)] font-[400] leading-[1.08] tracking-[-0.015em] outline-none" tabIndex={-1} id="review-title">
         Review your answers
       </h1>
-      <p className="mt-4 text-lg text-ink-2">
-        Change anything you like. When you’re ready, continue to your results.
-      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+        <p className="text-lg text-ink-2">Change anything, or go straight to your results.</p>
+        <button type="button" className={btn.primary} onClick={onFinish}>
+          See my results
+        </button>
+      </div>
 
       <dl className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4" data-testid="review-summary">
         {[
@@ -53,7 +56,7 @@ export function ReviewView({
         </p>
       )}
 
-      <div className="mt-10 grid gap-8">
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
         {DIMENSIONS.map((d) => (
           <section key={d.id} aria-labelledby={`rev-${d.id}`}>
             <h2 id={`rev-${d.id}`} data-dim={d.token} className="flex items-center gap-2.5 font-semibold">
@@ -67,29 +70,22 @@ export function ReviewView({
                 const index = QUESTIONS.findIndex((x) => x.id === q.id);
                 const item = results.items[index];
                 return (
-                  <li key={q.id} className="grid gap-3 p-4 sm:grid-cols-[2.25rem_1fr_auto] sm:items-center sm:gap-4" data-testid={`review-row-${q.id}`}>
+                  <li key={q.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[2.25rem_1fr_auto] sm:items-center sm:gap-4" data-testid={`review-row-${q.id}`}>
                     <FrameTile
                       token={d.token}
                       state={item.status}
                       frequency={item.frequency}
-                      impact={item.impact}
                       className="hidden h-9 w-9 sm:block"
                     />
                     <div>
                       <p className="text-[0.98rem]">
-                        <span className="sr-only">Statement {index + 1}: </span>
-                        {q.text}
+                        <span className="sr-only">Statement {index + 1}: {q.text} </span>
+                        <span aria-hidden="true">{q.shortLabel}</span>
                       </p>
                       <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                         <span className={cx("font-semibold", item.status !== "answered" && "text-ink-2")} data-testid="review-answer">
                           {item.frequencyLabel}
                         </span>
-                        {item.impact && (
-                          <span data-dim={d.token} className="inline-flex items-center gap-1.5 text-ink-2">
-                            <ImpactSymbol impact={item.impact} className="h-3 w-3 text-dim-deep" />
-                            {item.impactLabel}
-                          </span>
-                        )}
                       </p>
                     </div>
                     <button type="button" className={cx(btn.small, "justify-self-start")} onClick={() => onEdit(index)}>

@@ -27,7 +27,7 @@ export const FRAMEWORK = {
       "Awaiting review by qualified professionals. Regulatory assessment (EU MDR) required before any use as a screening or diagnostic product.",
   },
   minimumAge: 18,
-  estimatedMinutes: "8–12",
+  estimatedMinutes: "4–6",
 };
 
 export type DimensionId =
@@ -45,8 +45,6 @@ export type Frequency =
   | "often"
   | "almost_always"
   | "not_sure";
-
-export type Impact = "helpful" | "neutral" | "difficult" | "mixed";
 
 export interface Question {
   id: string;
@@ -282,23 +280,18 @@ export const SCALE: Exclude<Frequency, "not_sure">[] = [
   "almost_always",
 ];
 
-/** Responses for which the optional impact follow-up is offered. */
-export const IMPACT_ELIGIBLE: Frequency[] = ["rarely", "sometimes", "often", "almost_always"];
-
-export const IMPACT_OPTIONS: ResponseOption<Impact>[] = [
-  { value: "helpful", label: "Mostly helpful" },
-  { value: "neutral", label: "Neutral" },
-  { value: "difficult", label: "Mostly difficult" },
-  { value: "mixed", label: "Mixed" },
-];
+/** Position of each response on the 0–4 spectrum used in results. */
+export const SCALE_POSITION: Record<(typeof SCALE)[number], number> = {
+  never: 0,
+  rarely: 1,
+  sometimes: 2,
+  often: 3,
+  almost_always: 4,
+};
 
 export const FREQUENCY_LABEL: Record<Frequency, string> = Object.fromEntries(
   FREQUENCY_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<Frequency, string>;
-
-export const IMPACT_LABEL: Record<Impact, string> = Object.fromEntries(
-  IMPACT_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<Impact, string>;
 
 export const QUESTION_BY_ID: Record<string, Question> = Object.fromEntries(
   QUESTIONS.map((q) => [q.id, q]),

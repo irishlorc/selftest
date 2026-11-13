@@ -13,20 +13,18 @@ test.describe("keyboard and motion", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
 
-    const adult = page.getByLabel("I am 18 or over.");
-    while (!(await adult.evaluate((el) => el === document.activeElement))) await page.keyboard.press("Tab");
-    await page.keyboard.press("Space");
-    await page.keyboard.press("Tab");
+    const confirm = page.getByLabel(/18 or over/);
+    while (!(await confirm.evaluate((el) => el === document.activeElement))) await page.keyboard.press("Tab");
     await page.keyboard.press("Space");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Begin" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("progress-label")).toHaveText("Question 1 of 24");
 
-    // Number shortcuts + Enter.
+    // Number shortcuts answer and move on.
     for (let i = 0; i < 24; i++) {
+      await expect(page.getByTestId("progress-label")).toHaveText(`Question ${i + 1} of 24`);
       await page.keyboard.press(String((i % 6) + 1));
-      await page.keyboard.press("Enter");
     }
     await expect(page.getByRole("heading", { name: "Review your answers" })).toBeVisible();
     const s = await storedSession(page);
@@ -42,22 +40,25 @@ test.describe("keyboard and motion", () => {
     await expect(page).toHaveURL(/\/results$/);
   });
 
-  test("radio options respond to arrow keys and show a visible focus indicator", async ({ page }) => {
+  test("arrow keys change the selection without moving on, and show a visible focus indicator", async ({ page }) => {
     await page.goto("/experience");
-    await page.getByLabel("I am 18 or over.").check();
-    await page.getByLabel(/I understand FRAME-24/).check();
+    await page.getByLabel(/18 or over/).check();
     await page.getByRole("button", { name: "Begin" }).click();
-    await page.keyboard.press("3");
     const sometimes = page.getByRole("radio", { name: "Sometimes", exact: true });
     await sometimes.focus();
+    await page.keyboard.press("Space");
     await page.keyboard.press("ArrowRight");
     await expect(page.getByRole("radio", { name: "Often", exact: true })).toBeChecked();
+    await page.waitForTimeout(600);
+    await expect(page.getByTestId("progress-label")).toHaveText("Question 1 of 24");
     const outline = await page.locator("label", { has: page.getByRole("radio", { name: "Often", exact: true }) }).evaluate((el) => {
       const cs = getComputedStyle(el);
       return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth) };
     });
     expect(outline.style).not.toBe("none");
     expect(outline.width).toBeGreaterThanOrEqual(2);
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("progress-label")).toHaveText("Question 2 of 24");
   });
 
   test("dialogs trap focus and close with Escape", async ({ page }) => {

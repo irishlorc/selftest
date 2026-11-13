@@ -1,106 +1,93 @@
 import { expect, test } from "@playwright/test";
-import { DIMENSIONS, QUESTIONS, FREQUENCY_LABEL, IMPACT_LABEL, type Frequency, type Impact } from "../../src/config/questionnaire";
-import { createSession, withFrequency, withImpact, withSkip, type Session } from "../../src/lib/session";
+import { DIMENSIONS, QUESTIONS, FREQUENCY_LABEL, type Frequency } from "../../src/config/questionnaire";
+import { createSession, withFrequency, withSkip, type Session } from "../../src/lib/session";
 import { computeResults } from "../../src/lib/results";
 import { seed } from "./helpers";
 
 const FREQS: Frequency[] = ["never", "rarely", "sometimes", "often", "almost_always", "not_sure"];
-const IMPACTS: Impact[] = ["helpful", "neutral", "difficult", "mixed"];
+const done = (s: Session): Session => ({ ...s, consentedAt: s.startedAt, completedAt: "2026-11-12T12:00:00.000Z" });
 
 function mixedSession(): Session {
   let s = createSession();
   QUESTIONS.forEach((q, i) => {
-    if (i % 7 === 3) s = withSkip(s, q.id);
-    else {
-      s = withFrequency(s, q.id, FREQS[(i * 5) % 6]);
-      s = withImpact(s, q.id, IMPACTS[i % 4]);
-    }
+    s = i % 7 === 3 ? withSkip(s, q.id) : withFrequency(s, q.id, FREQS[(i * 5) % 6]);
   });
-  return { ...s, consentedAt: s.startedAt, completedAt: "2026-11-12T12:00:00.000Z" };
+  return done(s);
 }
 
-test.describe("results", () => {
-  test("every answer is reflected exactly on the results page", async ({ page }) => {
+test.describe("results spectrum", () => {
+  test("every answer is placed on the right spectrum, at the right point", async ({ page }) => {
     const session = mixedSession();
     const expected = computeResults(session);
     await seed(page, session);
     await page.goto("/results");
-    await expect(page.getByRole("heading", { name: "Your reflection", exact: true })).toBeVisible();
-    await expect(page.getByText("Completed 12 November 2026")).toBeVisible();
-
+    await expect(page.getByRole("heading", { name: "Your spectrum", exact: true })).toBeVisible();
+    await expect(page.getByText("12 November 2026")).toBeVisible();
     await expect(page.getByTestId("total-answered")).toHaveText(String(expected.totals.reported));
-    await expect(page.getByTestId("total-frequent")).toHaveText(String(expected.totals.frequent));
-    await expect(page.getByTestId("total-difficult")).toHaveText(String(expected.totals.difficult + expected.totals.mixed));
+    await expect(page.getByTestId("non-diagnostic")).toContainText("can’t tell you whether you’re autistic");
 
-    for (const q of QUESTIONS) {
-      const a = session.answers[q.id];
-      const row = page.getByTestId(`item-${q.id}`);
-      const label = a.skipped ? "Skipped" : FREQUENCY_LABEL[a.frequency!];
-      await expect(row.getByTestId("item-frequency")).toHaveText(label);
-      if (a.impact) await expect(row.getByTestId("item-impact")).toHaveText(IMPACT_LABEL[a.impact]);
-      else await expect(row.getByTestId("item-impact")).toHaveCount(0);
-    }
     for (const d of expected.dimensions) {
-      const card = page.getByTestId(`dimension-${d.dimension.id}`);
-      await expect(card.getByTestId("stat-frequent")).toHaveText(`${d.frequent}/4`);
-      await expect(card.getByTestId("stat-difficult")).toHaveText(`${d.impact.difficult + d.impact.mixed}/4`);
-      await expect(card.getByTestId("stat-gaps")).toHaveText(`${d.notSure + d.skipped + d.unanswered}/4`);
-      for (const p of d.patterns) await expect(card.getByTestId("patterns")).toContainText(p);
+      const row = page.getByTestId(`spectrum-row-${d.dimension.id}`);
+      const marks = row.getByTestId("spectrum-mark");
+      await expect(marks).toHaveCount(d.reported);
+      const positions = (await marks.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-position"))))).sort();
+      expect(positions).toEqual(d.items.filter((i) => i.position !== null).map((i) => i.position!).sort());
+      if (d.centre === null) await expect(row.getByTestId("spectrum-centre")).toHaveCount(0);
+      else await expect(row.getByTestId("spectrum-centre")).toHaveAttribute("data-centre", d.centre.toFixed(2));
+
+      // Expanding the row shows each statement with its exact answer.
+      await row.getByRole("button").first().click();
+      for (const item of d.items) {
+        const a = session.answers[item.question.id];
+        const label = a?.skipped ? "Skipped" : FREQUENCY_LABEL[a!.frequency!];
+        await expect(page.getByTestId(`item-${item.question.id}`).getByTestId("item-frequency")).toHaveText(label);
+      }
     }
-    // The map places each answered statement exactly once.
-    const chips = page.getByTestId("impact-map").locator("li");
-    const placed = expected.items.filter((i) => i.status === "answered").length;
-    await expect(chips).toHaveCount(placed);
-    await expect(page.getByTestId("non-diagnostic")).toContainText("cannot tell you whether you are autistic");
   });
 
-  test("notes save locally and persist after reload", async ({ page }) => {
+  test("results stay short: no long interpretive text by default", async ({ page }) => {
     await seed(page, mixedSession());
     await page.goto("/results");
-    await page.getByTestId("note-sensory").fill("Supermarkets on Saturdays.");
+    const words = await page.locator("main").evaluate((m) => {
+      const visible = [...m.querySelectorAll("p, li, h1, h2, h3, span, a, button")].filter(
+        (el) => (el as HTMLElement).offsetParent !== null && el.children.length === 0,
+      );
+      return visible.map((el) => el.textContent ?? "").join(" ").split(/\s+/).filter(Boolean).length;
+    });
+    expect(words).toBeLessThan(260);
+  });
+
+  test("the note saves locally and persists after reload", async ({ page }) => {
+    await seed(page, mixedSession());
+    await page.goto("/results");
+    await page.getByRole("button", { name: "Add a note for your report" }).click();
     await page.getByTestId("note-overall").fill("Bring to GP.");
     await page.getByTestId("note-overall").blur();
-    await expect(page.getByText("Saved on this device").first()).toBeVisible();
+    await expect(page.getByText("Saved on this device", { exact: true })).toBeVisible();
     await page.reload();
-    await expect(page.getByTestId("note-sensory")).toHaveValue("Supermarkets on Saturdays.");
+    await page.getByRole("button", { name: "Edit your note" }).click();
     await expect(page.getByTestId("note-overall")).toHaveValue("Bring to GP.");
   });
 
-  test("everything skipped: nothing is assumed", async ({ page }) => {
+  test("everything skipped or 'not sure': nothing is placed or assumed", async ({ page }) => {
     let s = createSession();
-    for (const q of QUESTIONS) s = withSkip(s, q.id);
-    await seed(page, { ...s, consentedAt: s.startedAt, completedAt: s.startedAt });
-    await page.goto("/results");
-    await expect(page.getByTestId("total-answered")).toHaveText("0");
-    await expect(page.getByTestId("total-frequent")).toHaveText("0");
-    await expect(page.getByTestId("total-gaps")).toHaveText("24");
-    await expect(page.getByTestId("impact-map").locator("li")).toHaveCount(0);
-    for (const d of DIMENSIONS) {
-      await expect(page.getByTestId(`dimension-${d.id}`).getByTestId("patterns")).toContainText("nothing to reflect back");
-    }
-  });
-
-  test("everything 'not sure': shown as gaps, not as answers", async ({ page }) => {
-    let s = createSession();
-    for (const q of QUESTIONS) s = withFrequency(s, q.id, "not_sure");
-    await seed(page, { ...s, consentedAt: s.startedAt, completedAt: s.startedAt });
+    QUESTIONS.forEach((q, i) => (s = i % 2 ? withSkip(s, q.id) : withFrequency(s, q.id, "not_sure")));
+    await seed(page, done(s));
     await page.goto("/results");
     await expect(page.getByTestId("total-answered")).toHaveText("0");
     await expect(page.getByTestId("total-gaps")).toHaveText("24");
+    await expect(page.getByTestId("spectrum-mark")).toHaveCount(0);
+    await expect(page.getByTestId("spectrum-centre")).toHaveCount(0);
+    await expect(page.getByText("No answers here")).toHaveCount(DIMENSIONS.length);
   });
 
-  test("everything 'almost always' and helpful: frequent is not treated as difficult", async ({ page }) => {
+  test("all 'almost always' sits at the far end; all 'never' at the start", async ({ page }) => {
     let s = createSession();
-    for (const q of QUESTIONS) {
-      s = withFrequency(s, q.id, "almost_always");
-      s = withImpact(s, q.id, "helpful");
-    }
-    await seed(page, { ...s, consentedAt: s.startedAt, completedAt: s.startedAt });
+    QUESTIONS.forEach((q, i) => (s = withFrequency(s, q.id, i < 12 ? "almost_always" : "never")));
+    await seed(page, done(s));
     await page.goto("/results");
-    await expect(page.getByTestId("total-frequent")).toHaveText("24");
-    await expect(page.getByTestId("total-difficult")).toHaveText("0");
-    await expect(page.getByTestId("hl-frequent-difficult")).toContainText("None from your answers.");
-    await expect(page.getByTestId("hl-frequent-helpful").locator("li")).toHaveCount(24);
+    const centres = await page.getByTestId("spectrum-centre").evaluateAll((els) => els.map((e) => e.getAttribute("data-centre")));
+    expect(centres).toEqual(["4.00", "4.00", "4.00", "0.00", "0.00", "0.00"]);
   });
 
   test("partial session shows an in-progress banner; no session shows an empty state", async ({ page }) => {

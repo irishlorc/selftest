@@ -10,33 +10,32 @@ describe("sanitizeSession", () => {
   });
 
   it("round-trips a valid session", () => {
-    const s = { ...createSession(), answers: { "com-1": { frequency: "often", impact: "mixed" } }, notes: { sensory: "hi" } };
-    expect(sanitizeSession(JSON.parse(JSON.stringify(s)))).toEqual({ ...s, overallNote: undefined, consentedAt: undefined, completedAt: undefined });
+    const s = { ...createSession(), answers: { "com-1": { frequency: "often" as const } }, overallNote: "hi" };
+    expect(sanitizeSession(JSON.parse(JSON.stringify(s)))).toEqual({ ...s, consentedAt: undefined, completedAt: undefined });
   });
 
-  it("drops unknown ids, invalid values and ineligible impacts", () => {
+  it("drops unknown ids, invalid values and data from older versions (impact, per-area notes)", () => {
     const out = sanitizeSession({
       schema: 1,
       startedAt: "2026-11-12T10:00:00.000Z",
       currentIndex: 999,
       answers: {
-        "com-1": { frequency: "sometimes", impact: "bogus" },
-        "com-2": { frequency: "never", impact: "difficult" },
+        "com-1": { frequency: "sometimes", impact: "mixed" },
         "com-3": { frequency: "extremely" },
-        "xxx": { frequency: "often" },
+        xxx: { frequency: "often" },
         "com-4": { skipped: true },
         "sen-1": { frequency: "not_sure", skipped: true },
       },
-      notes: { sensory: "a".repeat(NOTE_MAX_LENGTH + 50), hacker: "x", social: 5 },
+      notes: { sensory: "old" },
+      overallNote: "a".repeat(NOTE_MAX_LENGTH + 50),
     })!;
     expect(out.answers).toEqual({
       "com-1": { frequency: "sometimes" },
-      "com-2": { frequency: "never" },
       "com-4": { skipped: true },
       "sen-1": { frequency: "not_sure" },
     });
-    expect(out.notes.sensory).toHaveLength(NOTE_MAX_LENGTH);
-    expect(Object.keys(out.notes)).toEqual(["sensory"]);
+    expect(out).not.toHaveProperty("notes");
+    expect(out.overallNote).toHaveLength(NOTE_MAX_LENGTH);
     expect(out.currentIndex).toBe(23);
   });
 

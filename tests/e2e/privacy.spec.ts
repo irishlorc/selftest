@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { begin, choose, next, storageKeys } from "./helpers";
+import { begin, storageKeys, tap } from "./helpers";
 
 test.describe("privacy", () => {
   test("a full session makes no third-party requests and sets no cookies", async ({ page, context, baseURL }) => {
@@ -14,11 +14,9 @@ test.describe("privacy", () => {
       if (r.method() !== "GET" && r.method() !== "HEAD") posts.push(`${r.method()} ${r.url()}`);
     });
     await begin(page);
-    for (let i = 0; i < 24; i++) {
-      await choose(page, i % 2 ? "Often" : "Rarely");
-      await next(page);
-    }
+    for (let i = 0; i < 24; i++) await tap(page, i % 2 ? "Often" : "Rarely", i + 1);
     await page.getByTestId("finish-button").click();
+    await page.getByRole("button", { name: "Add a note for your report" }).click();
     await page.getByTestId("note-overall").fill("secret reflection");
     await page.getByTestId("note-overall").blur();
     await page.goto("/report");
@@ -32,8 +30,7 @@ test.describe("privacy", () => {
 
   test("delete control removes every FRAME-24 item from the browser", async ({ page }) => {
     await begin(page);
-    await choose(page, "Often");
-    await next(page);
+    await tap(page, "Often", 1);
     await page.goto("/privacy");
     expect((await storageKeys(page)).length).toBeGreaterThan(0);
     await page.getByRole("button", { name: "Delete my data from this device" }).first().click();

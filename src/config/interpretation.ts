@@ -99,10 +99,11 @@ export const GENERAL_DISCUSSION_PROMPTS: string[] = [
 export const COPY = {
   nonDiagnostic:
     "FRAME-24 is an original self-reflection tool. It has not been clinically validated, and it cannot tell you whether you are autistic. Autistic traits overlap with many other human experiences, so a low number of reported experiences does not rule autism out, and a high number does not confirm it.",
-  frequencyVsDifficulty:
-    "How often something happens and how it affects you are different questions. An experience can be frequent and helpful, rare but difficult, or anything in between — so FRAME-24 shows them separately.",
+  nonDiagnosticShort:
+    "A picture of your own answers — not a test result. It can’t tell you whether you’re autistic, and there’s no overall score.",
+  spectrum:
+    "Each line runs from Never to Almost always. Small marks are your four answers in that area; the larger marker sits in the middle of them.",
   noAssumptions:
-    "Statements you skipped or marked ‘not sure’ are shown as gaps. FRAME-24 never fills them in or assumes an answer.",
-  emptyDimension:
-    "You didn’t give a frequency for any statement in this area, so there is nothing to reflect back here. That’s completely fine.",
+    "Statements you skipped or marked ‘not sure’ are left off the lines. FRAME-24 never fills them in.",
+  emptyDimension: "Nothing answered in this area.",
 };

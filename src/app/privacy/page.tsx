@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 };
 
 const STORED = [
-  ["Your answers", "The response you chose for each statement, and the optional effect."],
-  ["Your notes", "Any reflections you write on the results page."],
+  ["Your answers", "The response you chose for each statement."],
+  ["Your note", "The optional note you can add on the results page."],
   ["Progress", "Which statement you were on, when you started and when you finished."],
   ["Confirmation", "When you confirmed you are 18+ and understand FRAME-24 isn’t a diagnosis."],
   ["Display settings", "Your theme and motion preferences."],

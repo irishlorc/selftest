@@ -1,4 +1,4 @@
-import type { Frequency, Impact } from "@/config/questionnaire";
+import type { Frequency } from "@/config/questionnaire";
 import { cx } from "@/lib/ui";
 
 /** Fill height for each frequency. Shape, not colour alone, carries meaning. */
@@ -12,22 +12,6 @@ export const FILL: Record<Exclude<Frequency, "not_sure">, number> = {
 
 export type TileState = "answered" | "not_sure" | "skipped" | "unanswered" | "unvisited";
 
-export function ImpactSymbol({ impact, className }: { impact: Impact; className?: string }) {
-  return (
-    <svg viewBox="0 0 12 12" className={className} aria-hidden="true" focusable="false">
-      {impact === "helpful" && <circle cx="6" cy="6" r="4.2" fill="currentColor" />}
-      {impact === "neutral" && <rect x="1.5" y="4.6" width="9" height="2.8" rx="1.4" fill="currentColor" />}
-      {impact === "difficult" && <path d="M6 1.4 10.8 10H1.2Z" fill="currentColor" />}
-      {impact === "mixed" && (
-        <>
-          <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          <path d="M6 1.8a4.2 4.2 0 0 1 0 8.4Z" fill="currentColor" />
-        </>
-      )}
-    </svg>
-  );
-}
-
 /**
  * One "frame": a rounded tile whose fill height shows reported frequency.
  * Not sure = hatched; skipped or unanswered = dashed outline, left empty.
@@ -36,18 +20,14 @@ export function FrameTile({
   token,
   state,
   frequency,
-  impact,
   current = false,
   className,
-  showImpact = true,
 }: {
   token: string;
   state: TileState;
   frequency?: Frequency;
-  impact?: Impact;
   current?: boolean;
   className?: string;
-  showImpact?: boolean;
 }) {
   const fill = state === "answered" && frequency && frequency !== "not_sure" ? FILL[frequency] : 0;
   return (
@@ -80,11 +60,6 @@ export function FrameTile({
             opacity: 0.45,
           }}
         />
-      )}
-      {showImpact && impact && (
-        <span className="absolute right-[12%] top-[12%] grid place-items-center rounded-full bg-surface/90 p-[2px] text-dim-deep">
-          <ImpactSymbol impact={impact} className="h-2.5 w-2.5" />
-        </span>
       )}
     </span>
   );

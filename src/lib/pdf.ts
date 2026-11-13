@@ -7,10 +7,8 @@ import type { jsPDF as JsPDF } from "jspdf";
 import {
   DIMENSIONS,
   FRAMEWORK,
-  IMPACT_OPTIONS,
   QUESTIONS,
   type Frequency,
-  type Impact,
 } from "@/config/questionnaire";
 import { COPY } from "@/config/interpretation";
 import { ASSESSMENT_RESOURCES, RESOURCES_LAST_VERIFIED, URGENT_SUPPORT, SUPPORT_RESOURCES } from "@/config/resources";
@@ -125,7 +123,7 @@ class Writer {
   }
 }
 
-function tile(doc: JsPDF, x: number, y: number, size: number, token: string, item: Pick<ItemResult, "status" | "frequency" | "impact">) {
+function tile(doc: JsPDF, x: number, y: number, size: number, token: string, item: Pick<ItemResult, "status" | "frequency">) {
   const c = DIM_COLOURS[token];
   const r = size * 0.3;
   if (item.status === "skipped" || item.status === "unanswered") {
@@ -160,22 +158,6 @@ function tile(doc: JsPDF, x: number, y: number, size: number, token: string, ite
     doc.discardPath();
     doc.rect(x, y + size - h, size, h, "F");
     doc.restoreGraphicsState();
-  }
-  if (item.impact) impactSymbol(doc, x + size - 3.2, y + 1.2, 2.2, item.impact, c.deep);
-}
-
-function impactSymbol(doc: JsPDF, x: number, y: number, s: number, impact: Impact, colour: RGB) {
-  doc.setFillColor(255, 255, 255);
-  doc.circle(x + s / 2, y + s / 2, s * 0.75, "F");
-  doc.setFillColor(colour[0], colour[1], colour[2]);
-  doc.setDrawColor(colour[0], colour[1], colour[2]);
-  doc.setLineWidth(0.25);
-  if (impact === "helpful") doc.circle(x + s / 2, y + s / 2, s * 0.42, "F");
-  if (impact === "neutral") doc.rect(x + s * 0.1, y + s * 0.38, s * 0.8, s * 0.24, "F");
-  if (impact === "difficult") doc.triangle(x + s / 2, y + s * 0.08, x + s * 0.95, y + s * 0.9, x + s * 0.05, y + s * 0.9, "F");
-  if (impact === "mixed") {
-    doc.circle(x + s / 2, y + s / 2, s * 0.42, "S");
-    doc.rect(x + s / 2, y + s * 0.1, s * 0.4, s * 0.8, "F");
   }
 }
 
@@ -215,10 +197,9 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
   const stats: Array<[string, number]> = [
     ["Statements answered", results.totals.reported],
     ["Often or almost always", results.totals.frequent],
-    ["Marked difficult or mixed", results.totals.difficult + results.totals.mixed],
     ["Not sure, skipped or unanswered", results.totals.notSure + results.totals.skipped + results.totals.unanswered],
   ];
-  const boxW = (CONTENT_W - 9) / 4;
+  const boxW = (CONTENT_W - 6) / 3;
   stats.forEach(([label, value], i) => {
     const x = M + i * (boxW + 3);
     doc.setFillColor(255, 255, 255);
@@ -250,168 +231,97 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
   w.colour(INK2);
   doc.text(discLines, M + 6, discY + 14);
 
-  // ---------------- About + overview ----------------
+  // ---------------- Spectrum ----------------
   w.newPage();
-  w.heading("About this report", 20);
+  w.heading("Your spectrum", 22);
   w.text(
-    "This report reflects your own responses to the 24 FRAME-24 statements, grouped into six areas of everyday experience. It describes what you reported. It does not score, rank or interpret your answers clinically.",
-    { colour: INK2 },
+    "Each area is a line from Never to Almost always. Small squares are your answers; the larger circle sits in the middle of them. Skipped and 'not sure' answers are left off. There is no overall score.",
+    { colour: INK2, size: 10, after: 6 },
   );
-  w.text(COPY.frequencyVsDifficulty, { colour: INK2 });
-  w.text(COPY.noAssumptions, { colour: INK2, after: 6 });
-
-  w.heading("Your 24 frames", 15);
-  w.text("Each frame is one statement. Fill height shows how often; a symbol shows how it affects you, where you said.", {
-    colour: INK2,
-    size: 9.5,
-    after: 5,
+  const labelW = 52;
+  const trackX = M + labelW + 6;
+  const trackW = CONTENT_W - labelW - 10;
+  // axis labels
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  w.colour(INK2);
+  ["Never", "Rarely", "Sometimes", "Often", "Almost always"].forEach((l, k) => {
+    const x = trackX + (trackW * k) / 4;
+    doc.text(l, x, w.y + 3, { align: k === 0 ? "left" : k === 4 ? "right" : "center" });
   });
+  w.y += 8;
   for (const d of results.dimensions) {
-    w.ensure(16);
+    const c = DIM_COLOURS[d.dimension.token];
+    const rowH = 30;
+    const trackY = w.y + 20;
+    // label
+    doc.setFillColor(c.soft[0], c.soft[1], c.soft[2]);
+    doc.roundedRect(M, w.y + 9, 6, 6, 1.8, 1.8, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     w.colour(INK);
-    doc.text(doc.splitTextToSize(pdfSafe(d.dimension.name), 62), M, w.y + 6);
-    d.items.forEach((item, i) => tile(doc, M + 68 + i * 15, w.y, 12, d.dimension.token, item));
+    doc.text(doc.splitTextToSize(pdfSafe(d.dimension.name), labelW - 9), M + 9, w.y + 13);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    w.colour(INK2);
-    doc.text(`${d.frequent} of ${d.total} often or almost always`, M + 132, w.y + 5);
-    doc.text(`${d.impact.difficult + d.impact.mixed} difficult or mixed`, M + 132, w.y + 9.5);
-    w.y += 16;
-  }
-
-  // Legend
-  w.y += 2;
-  w.ensure(30);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  w.colour(INK);
-  doc.text("Key", M, w.y + 3);
-  w.y += 6;
-  const legend: Array<[string, Pick<ItemResult, "status" | "frequency" | "impact">]> = [
-    ["Never", { status: "answered", frequency: "never" }],
-    ["Rarely", { status: "answered", frequency: "rarely" }],
-    ["Sometimes", { status: "answered", frequency: "sometimes" }],
-    ["Often", { status: "answered", frequency: "often" }],
-    ["Almost always", { status: "answered", frequency: "almost_always" }],
-    ["Not sure", { status: "not_sure", frequency: "not_sure" }],
-    ["Skipped / unanswered", { status: "skipped" }],
-  ];
-  legend.forEach(([label, item], i) => {
-    const x = M + (i % 4) * 44;
-    const y = w.y + Math.floor(i / 4) * 9;
-    tile(doc, x, y, 6, "lavender", item);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    w.colour(INK2);
-    doc.text(label, x + 8, y + 4.5);
-  });
-  w.y += 20;
-  IMPACT_OPTIONS.forEach((o, i) => {
-    const x = M + i * 44;
-    impactSymbol(doc, x + 1, w.y, 3.5, o.value, INK);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    w.colour(INK2);
-    doc.text(o.label, x + 8, w.y + 3);
-  });
-  w.y += 10;
-
-  // ---------------- Dimensions ----------------
-  for (const d of results.dimensions) {
-    const c = DIM_COLOURS[d.dimension.token];
-    w.ensure(70);
-    if (w.y > M + 1) w.y += 6;
-    const bandH = 24;
-    doc.setFillColor(c.soft[0], c.soft[1], c.soft[2]);
-    doc.roundedRect(M, w.y, CONTENT_W, bandH, 5, 5, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    w.colour(INK);
-    doc.text(pdfSafe(d.dimension.name), M + 7, w.y + 10);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    w.colour(INK2);
-    doc.text(pdfSafe(d.dimension.summary), M + 7, w.y + 17);
-    d.items.forEach((item, i) => tile(doc, PAGE_W - M - 7 - (4 - i) * 9.5 + 1.5, w.y + 8, 8, d.dimension.token, item));
-    w.y += bandH + 5;
-
-    // Statement rows
+    doc.setFontSize(8);
+    w.colour(INK3);
+    const gaps = d.notSure + d.skipped + d.unanswered;
+    doc.text(`${d.reported} answered${gaps ? `, ${gaps} left out` : ""}`, M + 9, w.y + 22);
+    // track: soft-to-deep bands
+    const steps = 24;
+    for (let k = 0; k < steps; k++) {
+      const t = k / (steps - 1);
+      const col = c.soft.map((v, j) => Math.round(v + (c.deep[j] - v) * t * 0.85)) as RGB;
+      doc.setFillColor(col[0], col[1], col[2]);
+      doc.rect(trackX + (trackW * k) / steps, trackY - 1.6, trackW / steps + 0.2, 3.2, "F");
+    }
+    doc.setDrawColor(189, 182, 207);
+    doc.setLineWidth(0.2);
+    for (let k = 0; k <= 4; k++) doc.line(trackX + (trackW * k) / 4, trackY - 3, trackX + (trackW * k) / 4, trackY + 3);
+    // answers
+    const stacks = new Map<number, number>();
     for (const item of d.items) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const lines = doc.splitTextToSize(pdfSafe(item.question.text), CONTENT_W - 62) as string[];
-      const rowH = Math.max(lines.length * 4.6 + 3, 10);
-      w.ensure(rowH + 2);
-      tile(doc, M, w.y, 7, d.dimension.token, item);
-      w.colour(INK);
-      doc.text(lines, M + 11, w.y + 4.5);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.text(pdfSafe(item.frequencyLabel), PAGE_W - M - 46, w.y + 4.5);
-      if (item.impactLabel) {
-        doc.setFont("helvetica", "normal");
-        w.colour(INK2);
-        doc.text(pdfSafe(item.impactLabel), PAGE_W - M - 46, w.y + 9);
-      }
-      w.y += rowH;
-      w.draw(LINE);
-      doc.setLineWidth(0.2);
-      doc.line(M + 11, w.y, PAGE_W - M, w.y);
-      w.y += 2.5;
+      if (item.position === null) continue;
+      const n = stacks.get(item.position) ?? 0;
+      stacks.set(item.position, n + 1);
+      const x = trackX + (trackW * item.position) / 4;
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(x - 2.1, trackY - 7.6 - n * 3.2, 4.2, 4.2, 1.2, 1.2, "F");
+      doc.setFillColor(c.deep[0], c.deep[1], c.deep[2]);
+      doc.roundedRect(x - 1.6, trackY - 7.1 - n * 3.2, 3.2, 3.2, 1, 1, "F");
     }
-    w.y += 3;
-    w.text("What you reported", { size: 10.5, style: "bold", after: 1 });
-    for (const p of d.patterns) w.text(p, { colour: INK2, size: 10 });
-    w.text(`${d.about} ${d.overlaps}`, { colour: INK3, size: 9, after: 3 });
-
-    const note = session.notes[d.dimension.id];
-    if (opts.includeNotes && note) {
-      w.ensure(18);
-      w.text("Your reflections", { size: 10.5, style: "bold", after: 1 });
-      w.text(note, { colour: INK, size: 10, x: M + 4, width: CONTENT_W - 4, after: 3 });
+    if (d.centre !== null) {
+      const x = trackX + (trackW * d.centre) / 4;
+      doc.setFillColor(255, 255, 255);
+      doc.circle(x, trackY, 3.4, "F");
+      doc.setFillColor(c.deep[0], c.deep[1], c.deep[2]);
+      doc.circle(x, trackY, 2.5, "F");
+    } else {
+      doc.setFontSize(8);
+      w.colour(INK3);
+      doc.text("No answers here", trackX + trackW / 2, trackY - 4, { align: "center" });
     }
+    w.y += rowH;
+    w.draw(LINE);
+    doc.setLineWidth(0.2);
+    doc.line(M, w.y, PAGE_W - M, w.y);
   }
+  w.y += 8;
+  w.text(COPY.nonDiagnostic, { size: 9.5, colour: INK2 });
 
-  // ---------------- Patterns ----------------
+  // ---------------- Discussion ----------------
   w.newPage();
-  w.heading("Patterns across your answers", 20);
-  const sections: Array<[string, string, ItemResult[]]> = [
-    ["Frequent and difficult or mixed", "Reported often or almost always, and marked difficult or mixed.", results.highlights.frequentAndDifficult],
-    ["Frequent and helpful", "Reported often or almost always, and marked mostly helpful.", results.highlights.frequentAndHelpful],
-    [
-      "Less frequent, but difficult or mixed",
-      "Not frequent, yet marked difficult or mixed when it happens.",
-      results.highlights.lessFrequentButDifficult,
-    ],
-  ];
-  for (const [title, body, items] of sections) {
-    w.ensure(22);
-    w.text(title, { size: 12, style: "bold", after: 0.5 });
-    w.text(body, { size: 9.5, colour: INK3, after: 2 });
-    if (items.length === 0) w.text("None from your answers.", { colour: INK2, size: 10, after: 5 });
-    else {
-      for (const i of items) {
-        w.text(`#${i.index + 1}  ${i.question.text} (${i.frequencyLabel}, ${i.impactLabel})`, { size: 10, x: M + 3, width: CONTENT_W - 3, after: 1.5 });
-      }
-      w.y += 4;
-    }
-  }
-
-  w.y += 4;
-  w.heading("Questions you might discuss with a professional", 15);
-  w.text(
-    "These prompts are based on the areas where you reported frequent or difficult experiences, plus some that are useful for everyone. Use any that feel relevant.",
-    { colour: INK2, size: 10, after: 4 },
-  );
+  w.heading("Questions you might bring to a professional", 17);
+  w.text("Based on the areas where you answered often or almost always, plus some that help everyone.", {
+    colour: INK2,
+    size: 10,
+    after: 4,
+  });
   results.discussionPrompts.forEach((p, i) => {
     w.text(`${i + 1}.  ${p}`, { size: 10.5, x: M + 2, width: CONTENT_W - 2, after: 2.5 });
   });
-
   if (opts.includeNotes && session.overallNote) {
     w.y += 6;
-    w.heading("Your overall reflections", 15);
+    w.heading("Your note", 15);
     w.text(session.overallNote, { size: 10.5 });
   }
 
@@ -419,7 +329,7 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
   w.newPage();
   w.heading("Appendix: your full responses", 20);
   w.text(`All ${QUESTIONS.length} statements in the order they were presented.`, { colour: INK2, size: 10, after: 4 });
-  const cols = { n: M, s: M + 9, f: M + 120, i: M + 150 };
+  const cols = { n: M, s: M + 9, f: M + 140 };
   const header = () => {
     w.fill(SURFACE2);
     doc.rect(M, w.y, CONTENT_W, 7, "F");
@@ -429,7 +339,6 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
     doc.text("#", cols.n + 2, w.y + 4.8);
     doc.text("Statement", cols.s, w.y + 4.8);
     doc.text("Response", cols.f, w.y + 4.8);
-    doc.text("Effect", cols.i, w.y + 4.8);
     w.y += 9;
   };
   header();
@@ -438,8 +347,8 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
     const dim = DIMENSIONS.find((x) => x.id === item.question.dimension)!;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.8);
-    const lines = doc.splitTextToSize(pdfSafe(item.question.text), 106) as string[];
-    const freqLines = doc.splitTextToSize(pdfSafe(item.frequencyLabel), 28) as string[];
+    const lines = doc.splitTextToSize(pdfSafe(item.question.text), 126) as string[];
+    const freqLines = doc.splitTextToSize(pdfSafe(item.frequencyLabel), 34) as string[];
     const rowH = Math.max(lines.length, freqLines.length) * 3.8 + 2.6;
     const needsDim = currentDim !== dim.id;
     if (w.y + rowH + (needsDim ? 7 : 0) > PAGE_H - M - FOOTER_SPACE) {
@@ -464,9 +373,6 @@ export function buildReport(doc: JsPDF, session: Session, opts: ReportOptions): 
     doc.setFont("helvetica", item.status === "answered" ? "bold" : "normal");
     w.colour(item.status === "answered" ? INK : INK3);
     doc.text(freqLines, cols.f, w.y + 3.4);
-    doc.setFont("helvetica", "normal");
-    w.colour(INK2);
-    doc.text(item.impactLabel ? pdfSafe(item.impactLabel) : "-", cols.i, w.y + 3.4);
     w.y += rowH;
     w.draw(LINE);
     doc.setLineWidth(0.15);
